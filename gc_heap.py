@@ -1,29 +1,8 @@
-"""
-PA 9: The Garbage Collector -- starter.
-
-Complete GCHeap below. See the assignment, Part B,
-for the full requirements.
-
-Use gc_heap.py as specified in the assignment and imported by the harness.
-
-Design note: GCHeap.allocate(obj) takes exactly one argument per the
-spec, so an allocated object that references OTHER heap handles must
-expose them itself for decref's cascade to find -- via a
-get_child_handles() -> list[int] method. HeapNode below is a given
-example object shaped this way, used by the cyclic-structure test.
-"""
 
 from typing import Any, List
 
 
 class HeapNode:
-    """
-    Given: a minimal heap object whose fields may hold OTHER handles
-    (ints). get_child_handles() is what GCHeap.decref's cascade calls
-    to find them -- it must reflect the CURRENT field values, not a
-    snapshot taken at creation time.
-    """
-
     def __init__(self, **fields: Any) -> None:
         self.fields = fields
 
@@ -33,32 +12,36 @@ class HeapNode:
 
 class GCHeap:
     def __init__(self) -> None:
-        # TODO: internal storage -- e.g. {handle: (obj, refcount)} -- and a handle counter.
-        raise NotImplementedError
+        self._objects = {}
+        self._next_handle = 1
 
     def allocate(self, obj: Any) -> int:
-        """Store obj, return a new handle. Initial refcount is 1 (the creating reference)."""
-        # TODO
-        raise NotImplementedError
+        handle = self._next_handle
+        self._next_handle += 1
+        self._objects[handle] = [obj, 1]
+        return handle
 
     def incref(self, handle: int) -> None:
-        # TODO
-        raise NotImplementedError
+        if handle not in self._objects:
+            raise KeyError(f"Invalid handle: {handle}")
+        self._objects[handle][1] += 1
 
     def decref(self, handle: int) -> None:
-        """
-        Decrement the refcount. When it hits 0: free the object, AND
-        cascade-decref every handle returned by the freed object's
-        get_child_handles() (if it has that method), recursively.
-        """
-        # TODO
-        raise NotImplementedError
+        if handle not in self._objects:
+            raise KeyError(f"Invalid handle: {handle}")
+
+        self._objects[handle][1] -= 1
+
+        if self._objects[handle][1] == 0:
+            obj = self._objects[handle][0]
+            del self._objects[handle]
+
+            if hasattr(obj, "get_child_handles"):
+                for child in obj.get_child_handles():
+                    self.decref(child)
 
     def is_alive(self, handle: int) -> bool:
-        # TODO
-        raise NotImplementedError
+        return handle in self._objects
 
     def live_count(self) -> int:
-        """Number of currently-alive (refcount > 0) handles."""
-        # TODO
-        raise NotImplementedError
+        return len(self._objects)

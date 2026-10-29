@@ -7,112 +7,90 @@ defined -- do not modify them. See the assignment,
 Part B, for the full requirements.
 """
 
-from dataclasses import dataclass, field
-from typing import List
+from typing import Any, List, Tuple
 
-from lexer import Token, tokenize
-
-
-@dataclass
-class Program:
-    statements: list
+from parser import BinOp, Number, Variable
+from symtable import Environment
 
 
-@dataclass
-class Declaration:
-    name: str
-    expr: object
-    line: int
+class Cell:
+    """Given: a mutable box. Two names that share the SAME Cell are aliased."""
+
+    __slots__ = ("value",)
+
+    def __init__(self, value: Any) -> None:
+        self.value = value
 
 
-@dataclass
-class Assignment:
-    name: str
-    expr: object
-    line: int
+class FunctionDecl:
+    """Given: a minimal function declaration -- params and a single expr body."""
+
+    __slots__ = ("params", "body")
+
+    def __init__(self, params: List[str], body) -> None:
+        self.params = params
+        self.body = body
 
 
-@dataclass
-class BinOp:
-    op: str
-    left: object
-    right: object
-    line: int
+def evaluate(node, env: Environment):
+    """Given: evaluate a PA3 expression AST node against `env` (Cells are transparently dereferenced)."""
+    if isinstance(node, Number):
+        return node.value
+    if isinstance(node, Variable):
+        val = env.resolve(node.name)
+        return val.value if isinstance(val, Cell) else val
+    if isinstance(node, BinOp):
+        if node.op == "neg":
+            return -evaluate(node.left, env)
+        left = evaluate(node.left, env)
+        right = evaluate(node.right, env)
+        return {"+": lambda a, b: a + b, "-": lambda a, b: a - b, "*": lambda a, b: a * b, "/": lambda a, b: a / b}[node.op](left, right)
+    raise ValueError(f"cannot evaluate node: {node!r}")
 
 
-@dataclass
-class Number:
-    value: int
-    line: int
+def assign_through(env: Environment, name: str, value: Any) -> None:
+    """Given: write `value` into whatever Cell `name` resolves to (mutates in place, does not rebind)."""
+    cell = env.resolve(name)
+    if not isinstance(cell, Cell):
+        raise TypeError(f"'{name}' is not bound to a Cell -- did you forget to wrap it?")
+    cell.value = value
 
 
-@dataclass
-class Variable:
-    name: str
-    line: int
-
-
-class ParseError(Exception):
-    pass
-
-
-class _ParserState:
-    """Given: a small cursor wrapper over the token list. Not required to use, but handy."""
-
-    def __init__(self, tokens: List[Token]) -> None:
-        self.tokens = tokens
-        self.pos = 0
-
-    def peek(self) -> Token:
-        return self.tokens[self.pos]
-
-    def advance(self) -> Token:
-        tok = self.tokens[self.pos]
-        self.pos += 1
-        return tok
-
-    def expect(self, type_: str) -> Token:
-        tok = self.peek()
-        if tok.type != type_:
-            raise ParseError(f"Line {tok.line}: expected {type_}, found {tok.type} ({tok.lexeme!r}).")
-        return self.advance()
-
-
-def parse_factor(state: _ParserState):
+def bind_parameters(param_specs: List[Tuple[str, str]], arg_nodes: list, caller_env: Environment, callee_record) -> None:
+    """
+    Populate callee_record.locals_env according to each parameter's
+    mode ("value", "reference", or "value-result"). For value-result
+    parameters, also record what commit_value_result needs to do the
+    delayed write-back later -- store it whichever way you like (e.g.
+    an attribute on callee_record such as callee_record.pending_writeback).
+    """
     # TODO
     raise NotImplementedError
 
 
-def parse_term(state: _ParserState):
+def commit_value_result(callee_record, caller_env: Environment) -> None:
+    """
+    For every value-result parameter bound by bind_parameters on this
+    callee_record, copy its FINAL local value back into the caller's
+    corresponding variable now (call this only after the callee's body
+    has finished running).
+    """
     # TODO
     raise NotImplementedError
 
 
-def parse_expr(state: _ParserState):
-    # TODO
-    raise NotImplementedError
+class Closure:
+    def __init__(self, declaration: FunctionDecl, defining_env: Environment) -> None:
+        # TODO
+        raise NotImplementedError
 
-
-def parse_declaration(state: _ParserState) -> Declaration:
-    # TODO
-    raise NotImplementedError
-
-
-def parse_assignment(state: _ParserState) -> Assignment:
-    # TODO
-    raise NotImplementedError
-
-
-def parse_statement(state: _ParserState):
-    # TODO: peek at state.peek().type to choose declaration vs. assignment
-    raise NotImplementedError
-
-
-def parse_program(state: _ParserState) -> Program:
-    # TODO: loop parse_statement() until EOF
-    raise NotImplementedError
-
-
-def parse(tokens: List[Token]) -> Program:
-    state = _ParserState(tokens)
-    return parse_program(state)
+    def call(self, args: list, caller_env: Environment):
+        """
+        Create the callee Environment as a child of self.defining_env
+        (NOT caller_env) -- this is what makes closure capture work.
+        Bind each declaration.params[i] to args[i] (already-evaluated
+        values, wrapped in a Cell), then evaluate declaration.body in
+        that new environment and return the result.
+        """
+        # TODO
+        raise NotImplementedError

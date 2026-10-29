@@ -1,9 +1,3 @@
-"""
-PA 5 dependency: paste in YOUR OWN completed PA 4 symtable.py here.
-
-Complete Environment and check_program below. See
-PA_04_The_USILang_Symbol_Table.md, Part B, for the full requirements.
-"""
 
 from typing import Optional
 
@@ -17,35 +11,49 @@ class SemanticError(Exception):
 class Environment:
     def __init__(self, parent: Optional["Environment"] = None) -> None:
         self.parent = parent
-        self._names: dict = {}  # name -> declaration line, THIS scope only
+        self._names: dict = {}
 
     def define(self, name: str, line: int) -> None:
-        """
-        Store name -> line in THIS scope. Raise SemanticError if `name`
-        is already defined in THIS scope (not a parent scope --
-        shadowing a parent name is allowed).
-        """
-        # TODO
-        raise NotImplementedError
+        if name in self._names:
+            raise SemanticError(
+                f"Variable '{name}' is already defined in this scope"
+            )
+
+        self._names[name] = line
 
     def resolve(self, name: str) -> int:
-        """
-        Look up `name` in this scope, then climb `parent` links.
-        Return the declaration line, or raise SemanticError if not
-        found anywhere in the chain.
-        """
-        # TODO
-        raise NotImplementedError
+        if name in self._names:
+            return self._names[name]
+
+        if self.parent is not None:
+            return self.parent.resolve(name)
+
+        raise SemanticError(f"Undefined variable '{name}'")
 
 
 def check_program(ast: Program) -> Environment:
-    """
-    Walk `ast.statements` in order, using one top-level Environment.
-    For a Declaration: resolve every Variable in its expr BEFORE
-    defining the new name (so `let x = x;` fails as use-before-decl).
-    For an Assignment: resolve the assigned-to name, then resolve
-    every Variable in its expr. Errors must surface at the first
-    offending statement, not be collected and reported together.
-    """
-    # TODO
-    raise NotImplementedError
+    env = Environment()
+
+    def check_expr(node):
+        if isinstance(node, Variable):
+            env.resolve(node.name)
+
+        elif isinstance(node, BinOp):
+            check_expr(node.left)
+
+            if node.right is not None:
+                check_expr(node.right)
+
+        elif isinstance(node, Number):
+            return
+
+    for stmt in ast.statements:
+        if isinstance(stmt, Declaration):
+            check_expr(stmt.expr)
+            env.define(stmt.name, stmt.line)
+
+        elif isinstance(stmt, Assignment):
+            env.resolve(stmt.name)
+            check_expr(stmt.expr)
+
+    return env
